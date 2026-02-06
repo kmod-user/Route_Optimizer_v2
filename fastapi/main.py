@@ -23,6 +23,7 @@ app.add_middleware(
 
 
 # ---------- Pydantic models ----------
+
 class NodeOut(BaseModel):
     id: str
     x: float
@@ -30,11 +31,15 @@ class NodeOut(BaseModel):
 
 
 class EdgeOut(BaseModel):
-    # use from_ in JSON as well to avoid alias issues
     from_: str
     to: str
     distance: float
-    geometry: Optional[List[List[float]]] = None  # [[lon, lat], [lon, lat], ...]
+    geometry: Optional[List[List[float]]] = None  
+
+
+class RouteSummary(BaseModel):
+    distance_km: float
+    fuel_cost: float
 
 
 class RouteOut(BaseModel):
@@ -44,9 +49,11 @@ class RouteOut(BaseModel):
     objective: float
     expanded: int
     notes: Optional[str] = None
+    summary: Optional[RouteSummary] = None   
 
 
 class RouteResponse(BaseModel):
+    api_version: str = "v1"         
     nodes: List[NodeOut]
     edges: List[EdgeOut]
     route: RouteOut
@@ -125,6 +132,8 @@ def get_route(
         notes=notes,
     )
 
+    route_out.summary = RouteSummary(distance_km=total_distance, fuel_cost=fuel_cost)
+
     # Build response data structures
     nodes_out: List[NodeOut] = []
     for node_id, (x, y) in positions.items():
@@ -151,4 +160,5 @@ def get_route(
                 EdgeOut(from_=str(u), to=str(v), distance=dist_val, geometry=geometry)
             )
 
-    return RouteResponse(nodes=nodes_out, edges=edges_out, route=route_out)
+    return RouteResponse(api_version="v1", nodes=nodes_out, edges=edges_out, route=route_out)
+
