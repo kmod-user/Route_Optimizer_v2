@@ -39,6 +39,11 @@ type Edge = {
 
 type Algorithm = "dijkstra" | "astar" | "greedy";
 
+type RouteSummary = {
+  distance_km: number;
+  fuel_cost: number;
+};
+
 type Route = {
   path: NodeId[];
   total_distance: number;
@@ -81,6 +86,16 @@ export default function Page() {
   const [error, setError] = React.useState<string | null>(null);
 
   const availableNodeIds = React.useMemo(() => nodes.map((n) => n.id), [nodes]);
+  const summaryPath = React.useMemo(() => {
+    if (!route?.path?.length) return [];
+    const cleaned: NodeId[] = [];
+    for (const node of route.path) {
+      if (cleaned.length === 0 || cleaned[cleaned.length - 1] !== node) {
+        cleaned.push(node);
+      }
+    }
+    return cleaned;
+  }, [route]);
 
   const fetchRoute = async (useCurrentStartGoal: boolean) => {
     setLoading(true);
@@ -399,72 +414,114 @@ export default function Page() {
             marginBottom: "0.5rem",
           }}
         >
-          Route
+          Route Summary
         </h2>
 
       {!route ? (
         <p style={{ color: "#64748B", fontSize: "0.95rem" }}>
-          Fetch a route to see path details.
+          Fetch a route to see the summary.
         </p>
       ) : route.path && route.path.length ? (
         <>
-          <ol style={{ paddingLeft: "1.25rem", marginBottom: "0.75rem" }}>
-            {route.path.map((node, idx) => (
-              <li key={`${node}-${idx}`} style={{ margin: "0.25rem 0" }}>
-                {node}
-              </li>
-            ))}
-          </ol>
-
-          {/* Summary chips */}
           <div
             style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "0.5rem",
-              marginBottom: "0.5rem",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              gap: "0.75rem",
+              marginBottom: "0.75rem",
             }}
           >
             <div
               style={{
-                display: "inline-block",
-                padding: "0.35rem 0.6rem",
-                borderRadius: 999,
-                background: "#F1F5F9",
+                borderRadius: 10,
                 border: "1px solid #E2E8F0",
+                padding: "0.65rem 0.75rem",
+                background: "#F8FAFC",
                 fontWeight: 600,
-                fontSize: "0.9rem",
+                color: "#0F172A",
               }}
             >
-              Total distance:{" "}
-              {Number(route.summary?.distance_km ?? route.total_distance).toFixed(2)} km
+              Distance
+              <div style={{ fontSize: "1.1rem", marginTop: "0.15rem" }}>
+                {Number(route.summary?.distance_km ?? route.total_distance).toFixed(2)} km
+              </div>
             </div>
             <div
               style={{
-                display: "inline-block",
-                padding: "0.35rem 0.6rem",
-                borderRadius: 999,
-                background: "#F1F5F9",
+                borderRadius: 10,
                 border: "1px solid #E2E8F0",
+                padding: "0.65rem 0.75rem",
+                background: "#F8FAFC",
                 fontWeight: 600,
-                fontSize: "0.9rem",
+                color: "#0F172A",
               }}
             >
-              Fuel cost: ${Number(route.summary?.fuel_cost ?? route.fuel_cost).toFixed(2)}
+              Fuel cost
+              <div style={{ fontSize: "1.1rem", marginTop: "0.15rem" }}>
+                ${Number(route.summary?.fuel_cost ?? route.fuel_cost).toFixed(2)}
+              </div>
+            </div>
+            <div
+              style={{
+                borderRadius: 10,
+                border: "1px solid #E2E8F0",
+                padding: "0.65rem 0.75rem",
+                background: "#F8FAFC",
+                fontWeight: 600,
+                color: "#0F172A",
+              }}
+            >
+              Legs
+              <div style={{ fontSize: "1.1rem", marginTop: "0.15rem" }}>
+                {Math.max(summaryPath.length - 1, 0)}
+              </div>
+            </div>
+            <div
+              style={{
+                borderRadius: 10,
+                border: "1px solid #E2E8F0",
+                padding: "0.65rem 0.75rem",
+                background: "#F8FAFC",
+                fontWeight: 600,
+                color: "#0F172A",
+              }}
+            >
+              Expanded
+              <div style={{ fontSize: "1.1rem", marginTop: "0.15rem" }}>
+                {route.expanded}
+              </div>
             </div>
           </div>
 
-          {route.notes ? (
-            <p
-              style={{
-                marginTop: "0.75rem",
-                color: "#64748B",
-                fontSize: "0.9rem",
-              }}
-            >
-              <strong>Notes:</strong> {route.notes}
-            </p>
-          ) : null}
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "0.4rem",
+              alignItems: "center",
+            }}
+          >
+            {summaryPath.map((node, idx) => (
+              <React.Fragment key={`${node}-${idx}`}>
+                <span
+                  style={{
+                    padding: "0.3rem 0.6rem",
+                    borderRadius: 999,
+                    background: idx === 0 ? "#DCFCE7" : idx === summaryPath.length - 1 ? "#FEE2E2" : "#E2E8F0",
+                    color: "#0F172A",
+                    fontWeight: 600,
+                    fontSize: "0.9rem",
+                  }}
+                >
+                  {node}
+                </span>
+                {idx < summaryPath.length - 1 && (
+                  <span style={{ color: "#64748B", fontWeight: 600 }}>-&gt;</span>
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+
         </>
       ) : (
         <p style={{ color: "#991B1B" }}>No path found.</p>
