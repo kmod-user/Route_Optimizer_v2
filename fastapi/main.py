@@ -5,7 +5,7 @@ import urllib.parse
 
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from Algorithms.dijkstra_fuel import DijkstraFuel
 from Algorithms.greedy_cheap_fuel import GreedyCheapFuel
@@ -71,6 +71,7 @@ class RouteResponse(BaseModel):
     nodes: List[NodeOut]
     edges: List[EdgeOut]
     route: RouteOut
+    baseline_path: List[str] = Field(default_factory=list)
     comparison: Optional[RouteComparison] = None
 
 
@@ -123,7 +124,7 @@ def get_route(
             expanded=0,
             notes="Empty graph.",
         )
-        return RouteResponse(nodes=[], edges=[], route=empty_route)
+        return RouteResponse(nodes=[], edges=[], route=empty_route, baseline_path=[])
 
     if start is None:
         start = str(node_ids[0])
@@ -149,10 +150,12 @@ def get_route(
         notes=notes,
     )
 
+    baseline_path: List[str] = []
     try:
         baseline_weights = {"distance": 1.0, "fuel": 0.0}
         baseline_algo = DijkstraFuel()
         baseline_result = baseline_algo.solve(g, start, goal, vehicle, baseline_weights, positions)
+        baseline_path = [str(n) for n in baseline_result.get("path", [])]
 
         baseline_total_distance = float(baseline_result.get("total_distance", 0.0) or 0.0)
         baseline_fuel_cost = float(baseline_result.get("fuel_cost", 0.0) or 0.0)
@@ -161,6 +164,7 @@ def get_route(
             baseline_fuel_cost = compute_fuel_cost_from_distance_km(baseline_total_distance, vehicle)
     except Exception as e:
         print(f"Baseline route calculation failed: {e}")
+        baseline_path = []
         baseline_total_distance = 0.0
         baseline_fuel_cost = 0.0
 
@@ -205,5 +209,11 @@ def get_route(
                 EdgeOut(from_=str(u), to=str(v), distance=dist_val, geometry=geometry)
             )
 
-    return RouteResponse(api_version="v1", nodes=nodes_out, edges=edges_out, route=route_out, comparison=comparison)
-
+    return RouteResponse(
+        api_version="v1",
+        nodes=nodes_out,
+        edges=edges_out,
+        route=route_out,
+        baseline_path=baseline_path,
+        comparison=comparison,
+    )
