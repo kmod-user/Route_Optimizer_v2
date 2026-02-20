@@ -246,7 +246,7 @@ export default function Page() {
             }}
           >
             <option value="" disabled>
-              Select node
+              Select city
             </option>
             {availableNodeIds.map((id) => (
               <option key={id} value={id}>
@@ -271,7 +271,7 @@ export default function Page() {
             }}
           >
             <option value="" disabled>
-              Select node
+              Select city
             </option>
             {availableNodeIds.map((id) => (
               <option key={id} value={id}>

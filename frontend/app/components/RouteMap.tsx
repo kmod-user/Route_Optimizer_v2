@@ -84,27 +84,27 @@ const createCustomIcon = (color: string, label: string) => {
 
 const createNodeIcon = (isOnPath: boolean, label: string) => {
   const color = isOnPath ? "#0EA5E9" : "#64748B";
+  // city name only, drop state abbr
+  const cityName = label.includes(",") ? label.split(",")[0] : label;
   return L.divIcon({
     className: "custom-marker",
     html: `
       <div style="
         background-color: white;
-        width: 28px;
-        height: 28px;
-        border-radius: 50%;
-        border: 3px solid ${color};
+        padding: 3px 8px;
+        border-radius: 12px;
+        border: 2px solid ${color};
         box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: bold;
+        font-weight: 600;
         color: #1e293b;
-        font-size: 12px;
-      ">${label}</div>
+        font-size: 11px;
+        white-space: nowrap;
+        transform: translate(-50%, -50%);
+      ">${cityName}</div>
     `,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-    popupAnchor: [0, -14],
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+    popupAnchor: [0, -15],
   });
 };
 
@@ -345,7 +345,7 @@ export default function RouteMap({
               )}
               <Popup>
                 <div style={{ textAlign: "center" }}>
-                  <strong>Node {node.id}</strong>
+                  <strong>{node.id}</strong>
                   <br />
                   <small>
                     Lat: {node.y.toFixed(4)}, Lng: {node.x.toFixed(4)}

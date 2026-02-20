@@ -253,7 +253,7 @@ def main():
     prices2 = {n: g2.fuel_price(n) for n in list(pos2.keys())[:6]}
     rows = run_scenario(
         "Scenario 2 -- Random 10-node (seed=42, balanced weights)",
-        g2, pos2, v2, "N0", "N9",
+        g2, pos2, v2, "Phoenix, AZ", "Tyler, TX",
         {"distance": 1.0, "fuel": 1.0}, prices2,
     )
     all_results.append(rows)
@@ -265,7 +265,7 @@ def main():
     prices3 = {n: g3.fuel_price(n) for n in list(pos3.keys())[:6]}
     rows = run_scenario(
         "Scenario 3 -- Random 12-node (seed=99, fuel-heavy w_fuel=2.0)",
-        g3, pos3, v3, "N0", "N11",
+        g3, pos3, v3, "Phoenix, AZ", "San Antonio, TX",
         {"distance": 1.0, "fuel": 2.0}, prices3,
     )
     all_results.append(rows)
@@ -277,7 +277,7 @@ def main():
     prices4 = {n: g4.fuel_price(n) for n in list(pos4.keys())[:6]}
     rows = run_scenario(
         "Scenario 4 -- Random 12-node (seed=7, distance-heavy w_dist=2.0)",
-        g4, pos4, v4, "N0", "N11",
+        g4, pos4, v4, "Phoenix, AZ", "San Antonio, TX",
         {"distance": 2.0, "fuel": 1.0}, prices4,
     )
     all_results.append(rows)
@@ -289,7 +289,7 @@ def main():
     prices5 = {n: g5.fuel_price(n) for n in list(pos5.keys())[:6]}
     rows = run_scenario(
         "Scenario 5 -- 8-node tight fuel budget (tank=8, fuel=1)",
-        g5, pos5, v5, "N0", "N7",
+        g5, pos5, v5, "Phoenix, AZ", "Fort Worth, TX",
         {"distance": 1.0, "fuel": 1.5}, prices5,
     )
     all_results.append(rows)

@@ -71,12 +71,11 @@ def generate_random_graph(n: int = 12,
     selected_cities = highway_cities[:n]
     
     for i, (city, lon, lat) in enumerate(selected_cities):
-        name = f"N{i}"
         price = rng.uniform(price_low, price_high)
-        g.add_node(name, round(price, 2))
+        g.add_node(city, round(price, 2))
         jitter_lon = rng.uniform(-0.3, 0.3)
         jitter_lat = rng.uniform(-0.3, 0.3)
-        positions[name] = (lon + jitter_lon, lat + jitter_lat)
+        positions[city] = (lon + jitter_lon, lat + jitter_lat)
 
     names = list(positions.keys())
     for i in range(n):
@@ -94,7 +93,7 @@ def generate_random_graph(n: int = 12,
 
     # Ensure all cities are connected
     for i in range(n-1):
-        a = f"N{i}"; b = f"N{i+1}"
+        a = names[i]; b = names[i+1]
         if all(e.to != b for e in g.nodes[a].edges) and all(e.to != a for e in g.nodes[b].edges):
             ax, ay = positions[a]; bx, by = positions[b]
             d = math.hypot((ax-bx) * 54, (ay-by) * 69)
