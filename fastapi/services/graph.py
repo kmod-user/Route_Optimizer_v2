@@ -68,9 +68,10 @@ def generate_random_graph(n: int = 12,
         ("San Antonio, TX", -98.493, 29.424),
     ]
     
-    selected_cities = highway_cities[:n]
+    total_nodes = min(n, len(highway_cities))
+    selected_cities = highway_cities[:total_nodes]
     
-    for i, (city, lon, lat) in enumerate(selected_cities):
+    for city, lon, lat in selected_cities:
         price = rng.uniform(price_low, price_high)
         g.add_node(city, round(price, 2))
         jitter_lon = rng.uniform(-0.3, 0.3)
@@ -78,8 +79,8 @@ def generate_random_graph(n: int = 12,
         positions[city] = (lon + jitter_lon, lat + jitter_lat)
 
     names = list(positions.keys())
-    for i in range(n):
-        for j in range(i+1, n):
+    for i in range(total_nodes):
+        for j in range(i + 1, total_nodes):
             ax, ay = positions[names[i]]
             bx, by = positions[names[j]]
             distance_miles = math.hypot((ax-bx) * 54, (ay-by) * 69)
@@ -92,8 +93,9 @@ def generate_random_graph(n: int = 12,
                 g.add_edge(names[i], names[j], round(d, 2))
 
     # Ensure all cities are connected
-    for i in range(n-1):
-        a = names[i]; b = names[i+1]
+    for i in range(total_nodes - 1):
+        a = names[i]
+        b = names[i + 1]
         if all(e.to != b for e in g.nodes[a].edges) and all(e.to != a for e in g.nodes[b].edges):
             ax, ay = positions[a]; bx, by = positions[b]
             d = math.hypot((ax-bx) * 54, (ay-by) * 69)
