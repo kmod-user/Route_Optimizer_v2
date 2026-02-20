@@ -9,6 +9,7 @@ import {
   Polyline,
   Tooltip,
   useMap,
+  useMapEvents,
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -85,9 +86,29 @@ const createCustomIcon = (color: string, label: string) => {
   });
 };
 
-const createNodeIcon = (isOnPath: boolean, label: string) => {
+// dot only when zoomed out, city name pill when zoomed in
+const createNodeIcon = (isOnPath: boolean, label: string, labelsVisible: boolean) => {
   const color = isOnPath ? "#0EA5E9" : "#64748B";
-  // city name only, drop state abbr
+
+  if (!labelsVisible) {
+    return L.divIcon({
+      className: "custom-marker",
+      html: `
+        <div style="
+          background-color: white;
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          border: 2px solid ${color};
+          box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+        "></div>
+      `,
+      iconSize: [12, 12],
+      iconAnchor: [6, 6],
+      popupAnchor: [0, -8],
+    });
+  }
+
   const cityName = label.includes(",") ? label.split(",")[0] : label;
   return L.divIcon({
     className: "custom-marker",
@@ -109,6 +130,19 @@ const createNodeIcon = (isOnPath: boolean, label: string) => {
     iconAnchor: [0, 0],
     popupAnchor: [0, -15],
   });
+};
+
+// min zoom to show city labels and fuel tooltips
+const LABEL_ZOOM_THRESHOLD = 7;
+
+const ZoomTracker: React.FC<{ onZoomChange: (z: number) => void }> = ({
+  onZoomChange,
+}) => {
+  const map = useMapEvents({
+    zoomend: () => onZoomChange(map.getZoom()),
+  });
+  React.useEffect(() => onZoomChange(map.getZoom()), [map, onZoomChange]);
+  return null;
 };
 
 const FitBounds: React.FC<{ nodes: Node[] }> = ({ nodes }) => {
@@ -136,6 +170,8 @@ export default function RouteMap({
 }: RouteMapProps) {
   const [isMounted, setIsMounted] = React.useState(false);
   const [mapId] = React.useState(() => `map-${Math.random().toString(36).substr(2, 9)}`);
+  const [zoom, setZoom] = React.useState(12);
+  const showLabels = zoom >= LABEL_ZOOM_THRESHOLD;
 
   React.useEffect(() => {
     setIsMounted(true);
@@ -348,6 +384,7 @@ export default function RouteMap({
         />
         
         <FitBounds nodes={nodes} />
+        <ZoomTracker onZoomChange={setZoom} />
 
         {edgeLines.map((line, idx) => (
           <Polyline
@@ -430,7 +467,7 @@ export default function RouteMap({
           } else if (isEnd) {
             icon = createCustomIcon("#EF4444", "E");
           } else {
-            icon = createNodeIcon(isOnPath, node.id);
+            icon = createNodeIcon(isOnPath, node.id, showLabels);
           }
 
           return (
@@ -439,7 +476,7 @@ export default function RouteMap({
               position={[node.y, node.x]}
               icon={icon}
             >
-              {fuelPrice !== null && (
+              {fuelPrice !== null && showLabels && (
                 <Tooltip direction="top" offset={[0, -15]} opacity={1} permanent>
                   <div
                     style={{
