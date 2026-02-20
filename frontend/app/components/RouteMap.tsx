@@ -42,9 +42,12 @@ type RouteMapProps = {
   nodes: Node[];
   edges: Edge[];
   routePath: NodeId[];
+  baselineRoutePath: NodeId[];
   fromNode?: NodeId;
   toNode?: NodeId;
 };
+
+const buildEdgeKey = (a: NodeId, b: NodeId) => (a < b ? `${a}|${b}` : `${b}|${a}`);
 
 const getPriceColor = (price: number, minPrice: number, maxPrice: number) => {
   if (maxPrice - minPrice < 0.001) return "hsl(202 75% 42%)";
@@ -84,27 +87,26 @@ const createCustomIcon = (color: string, label: string) => {
 
 const createNodeIcon = (isOnPath: boolean, label: string) => {
   const color = isOnPath ? "#0EA5E9" : "#64748B";
+  const cityName = label.includes(",") ? label.split(",")[0] : label;
   return L.divIcon({
     className: "custom-marker",
     html: `
       <div style="
         background-color: white;
-        width: 28px;
-        height: 28px;
-        border-radius: 50%;
-        border: 3px solid ${color};
+        padding: 3px 8px;
+        border-radius: 12px;
+        border: 2px solid ${color};
         box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: bold;
+        font-weight: 600;
         color: #1e293b;
-        font-size: 12px;
-      ">${label}</div>
+        font-size: 11px;
+        white-space: nowrap;
+        transform: translate(-50%, -50%);
+      ">${cityName}</div>
     `,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-    popupAnchor: [0, -14],
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+    popupAnchor: [0, -15],
   });
 };
 
@@ -127,6 +129,7 @@ export default function RouteMap({
   nodes,
   edges,
   routePath,
+  baselineRoutePath,
   fromNode,
   toNode,
 }: RouteMapProps) {
@@ -146,18 +149,11 @@ export default function RouteMap({
     return lookup;
   }, [nodes]);
 
-  const pathEdges = React.useMemo(() => {
-    const edgeSet = new Set<string>();
-    if (routePath.length > 1) {
-      for (let i = 0; i < routePath.length - 1; i++) {
-        const [a, b] = [routePath[i], routePath[i + 1]].sort();
-        edgeSet.add(`${a}|${b}`);
-      }
-    }
-    return edgeSet;
-  }, [routePath]);
-
-  const pathNodes = React.useMemo(() => new Set(routePath), [routePath]);
+  const optimizedPathNodes = React.useMemo(() => new Set(routePath), [routePath]);
+  const baselinePathNodes = React.useMemo(
+    () => new Set(baselineRoutePath),
+    [baselineRoutePath],
+  );
 
   const { minFuelPrice, maxFuelPrice } = React.useMemo(() => {
     const values = nodes
@@ -184,9 +180,6 @@ export default function RouteMap({
         const toNodeData = nodesById[edge.to];
         if (!fromNodeData || !toNodeData) return null;
 
-        const [a, b] = [edge.from_, edge.to].sort();
-        const isOnPath = pathEdges.has(`${a}|${b}`);
-
         let positions: [number, number][];
         if (edge.geometry && edge.geometry.length > 0) {
           positions = edge.geometry.map(([lon, lat]) => [lat, lon] as [number, number]);
@@ -199,16 +192,96 @@ export default function RouteMap({
 
         return {
           positions,
-          isOnPath,
           distance: edge.distance,
         };
       })
       .filter(Boolean) as Array<{
       positions: [number, number][];
-      isOnPath: boolean;
       distance: number;
     }>;
-  }, [edges, nodesById, pathEdges]);
+  }, [edges, nodesById]);
+
+  const edgeGeometryByKey = React.useMemo(() => {
+    const byKey = new Map<
+      string,
+      { from: NodeId; to: NodeId; positions: [number, number][] }
+    >();
+
+    for (const edge of edges) {
+      const fromNodeData = nodesById[edge.from_];
+      const toNodeData = nodesById[edge.to];
+      if (!fromNodeData || !toNodeData) continue;
+
+      const key = buildEdgeKey(edge.from_, edge.to);
+      const positions =
+        edge.geometry && edge.geometry.length > 0
+          ? edge.geometry.map(([lon, lat]) => [lat, lon] as [number, number])
+          : ([
+              [fromNodeData.y, fromNodeData.x] as [number, number],
+              [toNodeData.y, toNodeData.x] as [number, number],
+            ] as [number, number][]);
+
+      byKey.set(key, { from: edge.from_, to: edge.to, positions });
+    }
+
+    return byKey;
+  }, [edges, nodesById]);
+
+  const buildRouteSegments = React.useCallback(
+    (path: NodeId[]) => {
+      const segments: Array<{
+        key: string;
+        from: NodeId;
+        to: NodeId;
+        positions: [number, number][];
+      }> = [];
+
+      if (path.length < 2) return segments;
+
+      for (let i = 0; i < path.length - 1; i++) {
+        const from = path[i];
+        const to = path[i + 1];
+        if (from === to) continue;
+
+        const key = buildEdgeKey(from, to);
+        const edge = edgeGeometryByKey.get(key);
+
+        if (edge) {
+          const positions =
+            edge.from === from && edge.to === to
+              ? edge.positions
+              : [...edge.positions].reverse();
+          segments.push({ key: `${from}-${to}-${i}`, from, to, positions });
+        } else {
+          const fromNodeData = nodesById[from];
+          const toNodeData = nodesById[to];
+          if (!fromNodeData || !toNodeData) continue;
+
+          segments.push({
+            key: `${from}-${to}-${i}`,
+            from,
+            to,
+            positions: [
+              [fromNodeData.y, fromNodeData.x],
+              [toNodeData.y, toNodeData.x],
+            ],
+          });
+        }
+      }
+
+      return segments;
+    },
+    [edgeGeometryByKey, nodesById],
+  );
+
+  const baselineSegments = React.useMemo(
+    () => buildRouteSegments(baselineRoutePath),
+    [baselineRoutePath, buildRouteSegments],
+  );
+  const optimizedSegments = React.useMemo(
+    () => buildRouteSegments(routePath),
+    [routePath, buildRouteSegments],
+  );
 
   if (!isMounted) {
     return (
@@ -280,19 +353,59 @@ export default function RouteMap({
             key={`edge-${idx}`}
             positions={line.positions}
             pathOptions={{
-              color: line.isOnPath ? "#0EA5E9" : "#94A3B8",
-              weight: line.isOnPath ? 5 : 2,
-              opacity: line.isOnPath ? 0.9 : 0.5,
+              color: "#94A3B8",
+              weight: 2,
+              opacity: 0.45,
             }}
           >
             <Popup>
               <div style={{ textAlign: "center" }}>
                 <strong>Distance:</strong> {line.distance.toFixed(2)} units
-                {line.isOnPath && (
-                  <div style={{ color: "#0EA5E9", marginTop: 4 }}>
-                    ✓ On route
-                  </div>
-                )}
+              </div>
+            </Popup>
+          </Polyline>
+        ))}
+
+        {baselineSegments.map((segment) => (
+          <Polyline
+            key={`baseline-${segment.key}`}
+            positions={segment.positions}
+            pathOptions={{
+              color: "#F59E0B",
+              weight: 6,
+              opacity: 0.85,
+              dashArray: "8 10",
+            }}
+          >
+            <Popup>
+              <div style={{ textAlign: "center" }}>
+                <strong>Baseline route</strong>
+                <br />
+                <small>
+                  {segment.from} -&gt; {segment.to}
+                </small>
+              </div>
+            </Popup>
+          </Polyline>
+        ))}
+
+        {optimizedSegments.map((segment) => (
+          <Polyline
+            key={`optimized-${segment.key}`}
+            positions={segment.positions}
+            pathOptions={{
+              color: "#0EA5E9",
+              weight: 6,
+              opacity: 0.95,
+            }}
+          >
+            <Popup>
+              <div style={{ textAlign: "center" }}>
+                <strong>Optimized route</strong>
+                <br />
+                <small>
+                  {segment.from} -&gt; {segment.to}
+                </small>
               </div>
             </Popup>
           </Polyline>
@@ -301,7 +414,9 @@ export default function RouteMap({
         {nodes.map((node) => {
           const isStart = node.id === fromNode;
           const isEnd = node.id === toNode;
-          const isOnPath = pathNodes.has(node.id);
+          const isOnOptimizedPath = optimizedPathNodes.has(node.id);
+          const isOnBaselinePath = baselinePathNodes.has(node.id);
+          const isOnPath = isOnOptimizedPath || isOnBaselinePath;
           const fuelPrice =
             typeof node.fuel_price === "number" ? node.fuel_price : null;
           const fuelColor =
@@ -345,7 +460,7 @@ export default function RouteMap({
               )}
               <Popup>
                 <div style={{ textAlign: "center" }}>
-                  <strong>Node {node.id}</strong>
+                  <strong>{node.id}</strong>
                   <br />
                   <small>
                     Lat: {node.y.toFixed(4)}, Lng: {node.x.toFixed(4)}
@@ -369,8 +484,17 @@ export default function RouteMap({
                     </div>
                   )}
                   {isOnPath && !isStart && !isEnd && (
-                    <div style={{ color: "#0EA5E9", marginTop: 4 }}>
-                      ✓ On route
+                    <div
+                      style={{
+                        color: isOnOptimizedPath ? "#0EA5E9" : "#F59E0B",
+                        marginTop: 4,
+                      }}
+                    >
+                      {isOnOptimizedPath && isOnBaselinePath
+                        ? "✓ On optimized + baseline routes"
+                        : isOnOptimizedPath
+                        ? "✓ On optimized route"
+                        : "✓ On baseline route"}
                     </div>
                   )}
                 </div>
@@ -408,6 +532,31 @@ export default function RouteMap({
         <div style={{ display: "flex", justifyContent: "space-between" }}>
           <span>${minFuelPrice.toFixed(2)}</span>
           <span>${maxFuelPrice.toFixed(2)}</span>
+        </div>
+        <div style={{ marginTop: 8, borderTop: "1px solid #E2E8F0", paddingTop: 8 }}>
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>Routes</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+            <span
+              style={{
+                display: "inline-block",
+                width: 20,
+                height: 0,
+                borderTop: "3px dashed #F59E0B",
+              }}
+            />
+            <span>Baseline</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span
+              style={{
+                display: "inline-block",
+                width: 20,
+                height: 0,
+                borderTop: "4px solid #0EA5E9",
+              }}
+            />
+            <span>Optimized</span>
+          </div>
         </div>
       </div>
     </div>

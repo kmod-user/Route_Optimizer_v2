@@ -35,6 +35,7 @@ type Edge = {
   from_: NodeId;
   to: NodeId;
   distance: number;
+  geometry?: number[][];
 };
 
 type Algorithm = "dijkstra" | "astar" | "greedy";
@@ -66,6 +67,7 @@ type RouteResponse = {
   nodes: Node[];
   edges: Edge[];
   route: Route;
+  baseline_path?: NodeId[];
   comparison?: RouteComparison;
 };
 
@@ -84,6 +86,7 @@ export default function Page() {
   const [edges, setEdges] = React.useState<Edge[]>([]);
   const [comparison, setComparison] = React.useState<RouteComparison | null>(null);
   const [route, setRoute] = React.useState<Route | null>(null);
+  const [baselinePath, setBaselinePath] = React.useState<NodeId[]>([]);
 
   const [from, setFrom] = React.useState<NodeId | "">("");
   const [to, setTo] = React.useState<NodeId | "">("");
@@ -106,7 +109,11 @@ export default function Page() {
     return cleaned;
   }, [route]);
 
-  const fetchRoute = async (useCurrentStartGoal: boolean) => {
+  const fetchRoute = React.useCallback(async (
+    useCurrentStartGoal: boolean,
+    selectedFrom: NodeId | "",
+    selectedTo: NodeId | "",
+  ) => {
     setLoading(true);
     setError(null);
 
@@ -115,9 +122,9 @@ export default function Page() {
       params.set("algorithm", algorithm);
       params.set("seed", seed.trim() || "42");
 
-      if (useCurrentStartGoal && from && to) {
-        params.set("start", from);
-        params.set("goal", to);
+      if (useCurrentStartGoal && selectedFrom && selectedTo) {
+        params.set("start", selectedFrom);
+        params.set("goal", selectedTo);
       }
 
       const res = await fetch(`${API_BASE_URL}/route?${params.toString()}`);
@@ -158,34 +165,40 @@ export default function Page() {
       from_: e.from_,
       to: e.to,
       distance: e.distance,
+      geometry: e.geometry,
       })),
     );
 
     setRoute(apiRoute);
+    setBaselinePath(data.baseline_path ?? []);
 
     setComparison(data.comparison ?? null);
 
 
       if (!useCurrentStartGoal && data.route.path.length > 0) {
-        if (!from) setFrom(data.route.path[0]);
-        if (!to) setTo(data.route.path[data.route.path.length - 1]);
+        if (!selectedFrom) setFrom(data.route.path[0]);
+        if (!selectedTo) setTo(data.route.path[data.route.path.length - 1]);
       }
     } catch (err: unknown) {
       console.error(err);
       setError(err instanceof Error ? err.message : "Failed to fetch");
       setRoute(null);
+      setBaselinePath([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [algorithm, seed]);
 
+  const didInitialFetch = React.useRef(false);
   React.useEffect(() => {
-    fetchRoute(false);
-  }, []);
+    if (didInitialFetch.current) return;
+    didInitialFetch.current = true;
+    fetchRoute(false, "", "");
+  }, [fetchRoute]);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    fetchRoute(true);
+    fetchRoute(true, from, to);
   };
 
   return (
@@ -246,7 +259,7 @@ export default function Page() {
             }}
           >
             <option value="" disabled>
-              Select node
+              Select city
             </option>
             {availableNodeIds.map((id) => (
               <option key={id} value={id}>
@@ -271,7 +284,7 @@ export default function Page() {
             }}
           >
             <option value="" disabled>
-              Select node
+              Select city
             </option>
             {availableNodeIds.map((id) => (
               <option key={id} value={id}>
@@ -404,6 +417,7 @@ export default function Page() {
           nodes={nodes}
           edges={edges}
           routePath={route?.path ?? []}
+          baselineRoutePath={baselinePath}
           fromNode={from || undefined}
           toNode={to || undefined}
         />
