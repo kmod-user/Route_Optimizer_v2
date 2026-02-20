@@ -2,8 +2,10 @@ from typing import Dict, List, Optional, Literal
 import urllib.request
 import json
 import urllib.parse
+import os
 from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -12,12 +14,16 @@ from Algorithms.dijkstra_fuel import DijkstraFuel
 from Algorithms.greedy_cheap_fuel import GreedyCheapFuel
 from Algorithms.astar_fuel import AStarFuel
 from services.graph import generate_random_graph, Vehicle
+from services.eia import get_city_prices
+
+load_dotenv()
 
 app = FastAPI(title="Fuel-Aware Route Optimizer")
 
-FUEL_PRICE_SOURCE: Literal["json", "random"] = "json"   # Fuel price source toggle
-# set to "json" to load prices from fuel_prices.json
-# set to "random" to generate prices randomly using the graph seed
+FUEL_PRICE_SOURCE: Literal["json", "random", "eia"] = "eia"   # Fuel price source toggle
+# "json" = fuel_prices.json, "random" = graph seed, "eia" = EIA weekly diesel API
+
+EIAKEY = os.environ.get("EIAKEY", "")
 
 _FUEL_PRICES_PATH = Path(__file__).parent / "data" / "fuel_prices.json"
 
@@ -91,6 +97,22 @@ class RouteResponse(BaseModel):
 
 
 
+@app.get("/eia-prices")
+def get_eia_prices(seed: int = 42):
+    if not EIAKEY:
+        return {"error": "EIAKEY not set in .env"}
+    try:
+        city_prices, state_prices, period = get_city_prices(EIAKEY, seed)
+        return {
+            "source": "eia",
+            "period": period,
+            "state_averages": state_prices,
+            "city_prices": city_prices,
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
 def get_road_route(
     lon1: float, lat1: float, lon2: float, lat2: float
 ) -> Optional[List[List[float]]]:
@@ -113,8 +135,17 @@ def get_route(
     start: Optional[str] = Query(None),
     goal: Optional[str] = Query(None),
 ):
-    # Generate graph: use JSON prices or random prices depending on FUEL_PRICE_SOURCE seting in Line 23
-    price_overrides = _load_fuel_prices_from_json() if FUEL_PRICE_SOURCE == "json" else None
+    # pick fuel price source
+    if FUEL_PRICE_SOURCE == "json":
+        price_overrides = _load_fuel_prices_from_json()
+    elif FUEL_PRICE_SOURCE == "eia" and EIAKEY:
+        try:
+            price_overrides, _, _ = get_city_prices(EIAKEY, seed)
+        except Exception as e:
+            print(f"EIA fetch failed, falling back to json: {e}")
+            price_overrides = _load_fuel_prices_from_json()
+    else:
+        price_overrides = None
     g, positions = generate_random_graph(n=12, edge_prob=0.3, seed=seed, price_overrides=price_overrides)
 
     vehicle = Vehicle(tank_capacity=20, fuel=5, consumption_per_dist=0.08)

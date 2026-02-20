@@ -90,6 +90,13 @@ export default function Page() {
 
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [eiaPrices, setEiaPrices] = React.useState<{
+    source?: string;
+    period?: string;
+    city_prices?: Record<string, number>;
+    state_averages?: Record<string, number>;
+    error?: string;
+  } | null>(null);
 
   const availableNodeIds = React.useMemo(() => nodes.map((n) => n.id), [nodes]);
   const summaryPath = React.useMemo(() => {
@@ -162,6 +169,12 @@ export default function Page() {
 
     setComparison(data.comparison ?? null);
 
+      try {
+        const eiaRes = await fetch(`${API_BASE_URL}/eia-prices?seed=${seed.trim() || "42"}`);
+        if (eiaRes.ok) setEiaPrices(await eiaRes.json());
+      } catch (eiaErr) {
+        console.error("EIA prices fetch failed:", eiaErr);
+      }
 
       if (!useCurrentStartGoal && data.route.path.length > 0) {
         if (!selectedFrom) setFrom(data.route.path[0]);
@@ -559,6 +572,66 @@ export default function Page() {
 
 
       </section>
+
+      {eiaPrices?.city_prices && (
+        <section
+          style={{
+            border: "1px solid #E2E8F0",
+            borderRadius: 10,
+            padding: "1rem",
+            background: "#FFFFFF",
+            marginTop: "1rem",
+          }}
+        >
+          <h2
+            style={{
+              fontSize: "1.125rem",
+              fontWeight: 600,
+              marginBottom: "0.25rem",
+            }}
+          >
+            Regional Diesel Prices (EIA)
+          </h2>
+          {eiaPrices.period && (
+            <p
+              style={{
+                fontSize: "0.85rem",
+                color: "#64748B",
+                marginBottom: "0.75rem",
+              }}
+            >
+              Week of {eiaPrices.period}
+            </p>
+          )}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+              gap: "0.5rem",
+            }}
+          >
+            {Object.entries(eiaPrices.city_prices).map(([city, price]) => (
+              <div
+                key={city}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  padding: "0.5rem 0.75rem",
+                  borderRadius: 8,
+                  background: "#F8FAFC",
+                  border: "1px solid #E2E8F0",
+                  fontSize: "0.9rem",
+                }}
+              >
+                <span style={{ color: "#334155" }}>{city}</span>
+                <span style={{ fontWeight: 600, color: "#0F172A" }}>
+                  ${Number(price).toFixed(2)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </main>
   );
 }
