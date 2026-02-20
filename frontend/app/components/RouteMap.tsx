@@ -84,6 +84,7 @@ const createCustomIcon = (color: string, label: string) => {
 
 const createNodeIcon = (isOnPath: boolean, label: string) => {
   const color = isOnPath ? "#0EA5E9" : "#64748B";
+  // city name only, drop state abbr
   const cityName = label.includes(",") ? label.split(",")[0] : label;
   return L.divIcon({
     className: "custom-marker",
